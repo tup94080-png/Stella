@@ -1,18 +1,50 @@
-// settings.gradle
-pluginManagement {
-    repositories {
-        google()
-        mavenCentral()
-        gradlePluginPortal()
-    }
-}
-dependencyResolutionManagement {
-    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-    repositories {
-        google()
-        mavenCentral()
-    }
-}
-rootProject.name = "OmniAiApk"
-include(":app")
+# .github/workflows/android.yml
+name: Build Omni AI APK
 
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Ensure llama.cpp exists
+        run: |
+          if [ ! -f app/src/main/cpp/llama.cpp/CMakeLists.txt ]; then
+            rm -rf app/src/main/cpp/llama.cpp
+            git clone --depth 1 https://github.com/ggml-org/llama.cpp.git app/src/main/cpp/llama.cpp
+          fi
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Android SDK & NDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install NDK and CMake
+        run: sdkmanager "ndk;26.3.11579264" "cmake;3.22.1"
+
+      - name: Bootstrap Gradle Wrapper
+        run: |
+          gradle wrapper --gradle-version 8.7
+          chmod +x gradlew
+
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: OmniAI-arm64-debug
+          path: app/build/outputs/apk/debug/*.apk
